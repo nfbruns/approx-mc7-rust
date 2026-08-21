@@ -121,11 +121,7 @@ impl ApproxMcEngine {
         Ok(())
     }
 
-    fn run(
-        &self,
-        cnf: &Cnf,
-        projection: Option<&[Var]>,
-    ) -> Result<PacBounds, CountingError> {
+    fn run(&self, cnf: &Cnf, projection: Option<&[Var]>) -> Result<PacBounds, CountingError> {
         self.validate()?;
 
         // Determine how many variables the solver must allocate.
@@ -161,11 +157,7 @@ impl ApproxMcEngine {
             for clause in cnf.iter() {
                 buf.clear();
                 buf.extend(clause.iter().map(lit_to_ipasir));
-                approxmc_sys::approxmc_shim_add_clause(
-                    handle.ptr,
-                    buf.as_ptr(),
-                    buf.len(),
-                );
+                approxmc_sys::approxmc_shim_add_clause(handle.ptr, buf.as_ptr(), buf.len());
             }
 
             let (sampl, projected): (Vec<u32>, bool) = match projection {

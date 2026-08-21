@@ -136,6 +136,8 @@ fn display_uses_scientific_notation() {
     assert!(shown.contains("× 10^"), "unexpected format: {shown}");
     assert!(shown.contains('['), "missing bounds: {shown}");
     // 16 models -> 1.60 × 10^1.
-    assert!(shown.starts_with("1.60 × 10^1"), "unexpected value: {shown}");
+    assert!(
+        shown.starts_with("1.60 × 10^1"),
+        "unexpected value: {shown}"
+    );
 }
-

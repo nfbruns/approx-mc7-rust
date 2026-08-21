@@ -18,6 +18,7 @@ This library provides safe, in-memory approximate model counting for
 directly into the solver — no DIMACS files or pipes.
 
 Two crates:
+
 - `approxmc-sys` — unsafe FFI over a C++ shim wrapping `ApproxMC::AppMC`.
 - `rustsat-mc` — safe API: `ApproxMcEngine`, `ModelCounter`, `PacBounds`,
   `ApproxMcConfig`, `CountingError`.
