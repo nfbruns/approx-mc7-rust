@@ -1,7 +1,7 @@
+use approx_mc7_rust::{ApproxMcConfig, ApproxMcEngine, CountingError, ModelCounter};
 use num_bigint::BigUint;
 use rustsat::instances::Cnf;
 use rustsat::types::{Lit, Var};
-use rustsat_mc::{ApproxMcConfig, ApproxMcEngine, CountingError, ModelCounter};
 
 fn engine() -> ApproxMcEngine {
     ApproxMcEngine::new(ApproxMcConfig::default())

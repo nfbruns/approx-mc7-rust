@@ -16,7 +16,7 @@ there are no DIMACS files, temp files, or pipes involved.
 | Crate           | Description                                                        |
 | --------------- | ------------------------------------------------------------------ |
 | `approxmc-sys`  | Unsafe FFI: a C++ shim over `ApproxMC::AppMC` + raw `extern "C"`.   |
-| `rustsat-mc`    | Safe high-level API: `ApproxMcEngine`, `ModelCounter`, `PacBounds`. |
+| `approx-mc7-rust` | Safe high-level API: `ApproxMcEngine`, `ModelCounter`, `PacBounds`. |
 
 The native solver stack (CryptoMiniSat5, Arjun, SBVA, cadical/cadiback,
 ApproxMC) is built from source into `third_party/install/` and linked as shared
@@ -88,7 +88,7 @@ Add the crate (path or git dependency) and use the safe API:
 use num_bigint::BigUint;
 use rustsat::instances::Cnf;
 use rustsat::types::{Lit, Var};
-use rustsat_mc::{ApproxMcConfig, ApproxMcEngine, ModelCounter, PacBounds};
+use approx_mc7_rust::{ApproxMcConfig, ApproxMcEngine, ModelCounter, PacBounds};
 
 // Build a CNF: exactly-one over x0, x1, plus a free variable x2.
 let mut cnf = Cnf::new();
@@ -141,7 +141,7 @@ pub struct PacBounds {
 ### Error handling
 
 ```rust
-use rustsat_mc::CountingError;
+use approx_mc7_rust::CountingError;
 
 match engine.count(&cnf) {
     Ok(bounds) => println!("{}", bounds.point_estimate),

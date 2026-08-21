@@ -1,8 +1,8 @@
 ---
-name: rustsat-mc-integration
+name: approx-mc7-rust-integration
 description: >-
   Integrate ApproxMC-based approximate (PAC) model counting into a Rust project
-  using the rustsat-mc + approxmc-sys crates from approx-mc7-rust. Use when a
+  using the approx-mc7-rust + approxmc-sys crates. Use when a
   task needs to count (or approximately count) satisfying assignments of a CNF
   / SAT formula, optionally projected onto a subset of variables, with
   Probably-Approximately-Correct (epsilon/delta) guarantees, built on rustsat
@@ -11,7 +11,7 @@ description: >-
 license: MIT
 ---
 
-# Integrating `rustsat-mc` (ApproxMC model counting)
+# Integrating `approx-mc7-rust` (ApproxMC model counting)
 
 This library provides safe, in-memory approximate model counting for
 `rustsat` CNF formulas, backed by the C++ ApproxMC solver. Clauses are streamed
@@ -20,7 +20,7 @@ directly into the solver — no DIMACS files or pipes.
 Two crates:
 
 - `approxmc-sys` — unsafe FFI over a C++ shim wrapping `ApproxMC::AppMC`.
-- `rustsat-mc` — safe API: `ApproxMcEngine`, `ModelCounter`, `PacBounds`,
+- `approx-mc7-rust` — safe API: `ApproxMcEngine`, `ModelCounter`, `PacBounds`,
   `ApproxMcConfig`, `CountingError`.
 
 ## When to use
@@ -59,11 +59,11 @@ moving the checkout (the rpath is an absolute path).
 
 ## Step 3 — Depend on the crate
 
-`rustsat-mc` is a path/git crate (not published). In the consumer `Cargo.toml`:
+`approx-mc7-rust` is a path/git crate (not published). In the consumer `Cargo.toml`:
 
 ```toml
 [dependencies]
-rustsat-mc = { path = "../approx-mc7-rust/rustsat-mc" } # or git = "..."
+approx-mc7-rust = { path = "../approx-mc7-rust/approx-mc7-rust" } # or git = "..."
 rustsat = "0.5"
 num-bigint = "0.4"
 ```
@@ -105,7 +105,7 @@ pub enum CountingError { SolverError(String), Unsatisfiable, InvalidParameter(St
 ```rust
 use rustsat::instances::Cnf;
 use rustsat::types::{Lit, Var};
-use rustsat_mc::{ApproxMcConfig, ApproxMcEngine, ModelCounter};
+use approx_mc7_rust::{ApproxMcConfig, ApproxMcEngine, ModelCounter};
 
 let mut cnf = Cnf::new();
 cnf.add_nary(&[Lit::positive(0), Lit::positive(1)]); // x0 ∨ x1
@@ -117,7 +117,7 @@ let mut engine = ApproxMcEngine::new(ApproxMcConfig::default());
 let full = engine.count(&cnf)?;                 // point_estimate = 4
 let proj = engine.count_projected(&cnf, &[Var::new(0), Var::new(1)])?; // = 2
 println!("{full}");                             // 10^-style Display
-# Ok::<(), rustsat_mc::CountingError>(())
+# Ok::<(), approx_mc7_rust::CountingError>(())
 ```
 
 ## Rules and pitfalls (read before writing code)

@@ -2,7 +2,7 @@
 //!
 //! This crate exposes a thin, `unsafe` C ABI over a hand-written C++ shim
 //! (`shim/shim.cpp`) that wraps `ApproxMC::AppMC`. Prefer the safe
-//! `rustsat-mc` crate for application code.
+//! `approx-mc7-rust` crate for application code.
 
 use std::os::raw::c_int;
 
