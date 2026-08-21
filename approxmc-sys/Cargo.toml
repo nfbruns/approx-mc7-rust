@@ -1,0 +1,11 @@
+[package]
+name = "approxmc-sys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Native in-memory FFI bindings to the ApproxMC approximate model counter"
+links = "approxmc"
+build = "build.rs"
+
+[build-dependencies]
+cc = "1.0"
