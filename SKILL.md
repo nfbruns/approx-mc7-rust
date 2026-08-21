@@ -57,6 +57,14 @@ It clones `meelgroup/approxmc`, builds shared libs into `third_party/install/`,
 and generates `.cargo/config.toml` with the required `rpath`. Re-run after
 moving the checkout (the rpath is an absolute path).
 
+By default `approxmc-sys` looks for the install prefix at `third_party/install`
+relative to the crate. Override it with the `APPROXMC_PREFIX` environment
+variable to point at any prefix (e.g. a shared or system install):
+
+```bash
+APPROXMC_PREFIX=/opt/approxmc cargo build   # uses /opt/approxmc/{include,lib64|lib}
+```
+
 ## Step 3 — Depend on the crate
 
 `approx-mc7-rust` is a path/git crate (not published). In the consumer `Cargo.toml`:
@@ -68,13 +76,21 @@ rustsat = "0.5"
 num-bigint = "0.4"
 ```
 
-Important: the consumer's own binaries/tests must also carry the `rpath` to
-`third_party/install/lib64`. Either build inside the `approx-mc7-rust`
-workspace, or copy the generated `.cargo/config.toml` `rustflags` (both the
-`-Wl,--disable-new-dtags` and `-Wl,-rpath,<abs>/third_party/install/lib64`
-flags) into the consumer workspace's `.cargo/config.toml`. Without
-`--disable-new-dtags`, transitively-loaded libraries (e.g.
-`libcryptominisat5.so`) fail to load at runtime.
+Important: the consumer's own binaries/tests must locate the shared libraries
+at runtime. Pick one:
+
+- **System install (simplest, no per-consumer config):** copy the `.so` files
+  to a standard directory once and run `ldconfig`:
+  ```bash
+  sudo cp <prefix>/lib64/lib*.so* /usr/local/lib/ && sudo ldconfig
+  ```
+  After this no rpath or `.cargo/config.toml` is needed in any consumer.
+- **Per-consumer rpath:** copy this repo's generated `.cargo/config.toml`
+  `rustflags` (both the `-Wl,--disable-new-dtags` and
+  `-Wl,-rpath,<abs>/third_party/install/lib64` flags) into the consumer
+  workspace's `.cargo/config.toml`. Without `--disable-new-dtags`,
+  transitively-loaded libraries (e.g. `libcryptominisat5.so`) fail to load.
+- **Ad hoc:** `LD_LIBRARY_PATH=<prefix>/lib64 ./your-binary`.
 
 ## Core API
 

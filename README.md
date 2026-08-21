@@ -80,6 +80,31 @@ cargo build
 cargo test
 ```
 
+The install prefix defaults to `third_party/install`; override it with the
+`APPROXMC_PREFIX` environment variable to build/link against a different (e.g.
+system) install.
+
+## Using from another workspace
+
+`approx-mc7-rust` is a workspace with the library in a nested crate directory, so
+depend on that inner directory (not the virtual workspace root):
+
+```toml
+[dependencies]
+approx-mc7-rust = { path = "../approx-mc7-rust/approx-mc7-rust" }
+```
+
+The consumer binary must also locate the native shared libraries at runtime.
+Easiest is a one-time system install (then no per-project config is needed):
+
+```bash
+sudo cp third_party/install/lib64/lib*.so* /usr/local/lib/ && sudo ldconfig
+```
+
+Alternatively, copy this repo's generated `.cargo/config.toml` `rustflags` (the
+`--disable-new-dtags` + `-rpath` flags) into the consumer workspace, or run with
+`LD_LIBRARY_PATH=<prefix>/lib64`.
+
 ## Usage
 
 Add the crate (path or git dependency) and use the safe API:
@@ -110,6 +135,51 @@ println!("confidence = {}", bounds.confidence); // 1 - delta
 
 assert_eq!(bounds.point_estimate, BigUint::from(4u32));
 ```
+
+### Configuration (`ApproxMcConfig`)
+
+`ApproxMcConfig` controls the accuracy/speed trade-off of the counter:
+
+| Field     | Type  | Meaning                                                                                     |
+| --------- | ----- | ------------------------------------------------------------------------------------------- |
+| `epsilon` | `f64` | Multiplicative tolerance `ε`. The interval is `[count/(1+ε), count·(1+ε)]`. Must be `> 0`.   |
+| `delta`   | `f64` | Failure probability `δ`. Confidence is `1 − δ`. Must be in `(0, 1]`.                         |
+| `seed`    | `u32` | RNG seed; fixing it makes a run reproducible.                                                |
+
+Smaller `epsilon` (tighter interval) and smaller `delta` (higher confidence)
+both make counting **slower**. `ApproxMcConfig::default()` uses
+`epsilon = 0.2`, `delta = 0.05`, `seed = 1` — roughly a ±20% interval at 95%
+confidence.
+
+```rust
+use approx_mc7_rust::{ApproxMcConfig, ApproxMcEngine};
+
+// Defaults: epsilon 0.2, delta 0.05, seed 1.
+let mut engine = ApproxMcEngine::default();
+
+// Tighter and more confident (slower): ±5% interval at 99% confidence.
+let mut precise = ApproxMcEngine::new(ApproxMcConfig {
+    epsilon: 0.05,
+    delta: 0.01,
+    seed: 42,
+});
+
+// Looser and faster: wide interval, 80% confidence.
+let mut fast = ApproxMcEngine::new(ApproxMcConfig {
+    epsilon: 0.8,
+    delta: 0.2,
+    seed: 1,
+});
+
+// Override just one field, keep the rest at their defaults.
+let mut reproducible = ApproxMcEngine::new(ApproxMcConfig {
+    seed: 7,
+    ..Default::default()
+});
+```
+
+Invalid values (`epsilon <= 0` or `delta` outside `(0, 1]`) are rejected up
+front with `CountingError::InvalidParameter` — see [Error handling](#error-handling).
 
 ### Projected counting
 
