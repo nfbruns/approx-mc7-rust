@@ -11,4 +11,4 @@ license = "MIT"
 num-bigint = "^0.5.1"
 num-traits = "0.2"
 thiserror = "1.0"
-rustsat = { version = "0.7.5" }
+rustsat = { version = "^0.7.0" }
