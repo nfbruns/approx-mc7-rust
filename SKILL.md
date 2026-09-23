@@ -37,33 +37,31 @@ Do NOT use for: exact #SAT on large instances where exactness is mandatory
 ## Step 1 — Native prerequisites (required, non-optional)
 
 ApproxMC and its dependency chain (CryptoMiniSat5, Arjun, SBVA,
-cadical/cadiback) are compiled from source. The consuming machine needs:
+cadical/cadiback) are fetched from GitHub and compiled from source
+automatically by `approxmc-sys`'s `build.rs` (via a small CMake project, no
+manual clone step) the first time you `cargo build`. Everything builds as
+static libraries and gets linked directly into your binary — no rpath, no
+`LD_LIBRARY_PATH`, no shared libraries to install anywhere. The consuming
+machine still needs the toolchain to build it:
 
-- A C++20 compiler, `cmake`, `ninja`, `git`
+- A C++20 compiler, `cmake`, `git`
 - Dev headers: GMP (+ C++), MPFR, zlib, Boost
 
-Fedora: `sudo dnf install -y gcc-c++ cmake ninja-build git gmp-devel gmp-c++ mpfr-devel zlib-devel boost-devel`
-Debian/Ubuntu: `sudo apt install -y g++ cmake ninja-build git libgmp-dev libmpfr-dev zlib1g-dev libboost-dev`
+Fedora: `sudo dnf install -y gcc-c++ cmake git gmp-devel gmp-c++ mpfr-devel zlib-devel boost-devel`
+Debian/Ubuntu: `sudo apt install -y g++ cmake git libgmp-dev libmpfr-dev zlib1g-dev libboost-dev`
 
-## Step 2 — Build the native stack
+## Step 2 — Build
 
-From the `approx-mc7-rust` checkout, run its setup script once:
-
-```bash
-./scripts/setup-native.sh
-```
-
-It clones `meelgroup/approxmc`, builds shared libs into `third_party/install/`,
-and generates `.cargo/config.toml` with the required `rpath`. Re-run after
-moving the checkout (the rpath is an absolute path).
-
-By default `approxmc-sys` looks for the install prefix at `third_party/install`
-relative to the crate. Override it with the `APPROXMC_PREFIX` environment
-variable to point at any prefix (e.g. a shared or system install):
+Nothing to run manually — just build the workspace:
 
 ```bash
-APPROXMC_PREFIX=/opt/approxmc cargo build   # uses /opt/approxmc/{include,lib64|lib}
+cargo build
 ```
+
+The first build compiles ApproxMC and its whole dependency chain from source
+(several minutes); it's cached under `target/` afterwards like any other build
+script output. To pin a specific ApproxMC ref instead of tracking `master`,
+edit `APPROXMC_TAG` in `approxmc-sys/vendor/CMakeLists.txt`.
 
 ## Step 3 — Depend on the crate
 
@@ -76,21 +74,10 @@ rustsat = "0.5"
 num-bigint = "0.4"
 ```
 
-Important: the consumer's own binaries/tests must locate the shared libraries
-at runtime. Pick one:
-
-- **System install (simplest, no per-consumer config):** copy the `.so` files
-  to a standard directory once and run `ldconfig`:
-  ```bash
-  sudo cp <prefix>/lib64/lib*.so* /usr/local/lib/ && sudo ldconfig
-  ```
-  After this no rpath or `.cargo/config.toml` is needed in any consumer.
-- **Per-consumer rpath:** copy this repo's generated `.cargo/config.toml`
-  `rustflags` (both the `-Wl,--disable-new-dtags` and
-  `-Wl,-rpath,<abs>/third_party/install/lib64` flags) into the consumer
-  workspace's `.cargo/config.toml`. Without `--disable-new-dtags`,
-  transitively-loaded libraries (e.g. `libcryptominisat5.so`) fail to load.
-- **Ad hoc:** `LD_LIBRARY_PATH=<prefix>/lib64 ./your-binary`.
+Important: the native dependency chain is statically linked into your
+binaries/tests, so there is nothing extra to do at runtime — no rpath, no
+`LD_LIBRARY_PATH`, no system install of `.so` files. The consumer just needs
+the build-time prerequisites from Step 1.
 
 ## Core API
 
@@ -158,7 +145,8 @@ println!("{full}");                             // 10^-style Display
 
 ## Verify
 
-`cargo build` then `cargo test`. A runtime error
-`error while loading shared libraries: libapproxmc.so...` means the `rpath` is
-missing — re-run `./scripts/setup-native.sh` and ensure the consumer inherits
-the generated `.cargo/config.toml` rustflags.
+`cargo build` then `cargo test`. If linking fails with an undefined or
+duplicate symbol from ApproxMC's dependency chain, see the comments in
+`approxmc-sys/build.rs` — it whole-archive-links every static lib CMake
+produces, with one known duplicate (`oracle`, embedded in `cryptominisat5`)
+excluded already.

@@ -18,71 +18,50 @@ there are no DIMACS files, temp files, or pipes involved.
 | `approxmc-sys`  | Unsafe FFI: a C++ shim over `ApproxMC::AppMC` + raw `extern "C"`.   |
 | `approx-mc7-rust` | Safe high-level API: `ApproxMcEngine`, `ModelCounter`, `PacBounds`. |
 
-The native solver stack (CryptoMiniSat5, Arjun, SBVA, cadical/cadiback,
-ApproxMC) is built from source into `third_party/install/` and linked as shared
-libraries.
+`cargo build` fetches and builds the whole native solver stack itself: no
+manual clone, no setup script, no rpath. `approxmc-sys`'s `build.rs` drives a
+small CMake project that pulls ApproxMC straight from GitHub (which then pulls
+CryptoMiniSat5, Arjun, SBVA, and cadical/cadiback via its own `FetchContent`)
+and builds the whole chain as static (`.a`, `-fPIC`) libraries. Those archives
+get linked directly into the Rust binary/test artifacts, so there is no `.so`
+to find at runtime and therefore nothing that needs an `rpath` or
+`LD_LIBRARY_PATH`. The only remaining dynamic dependencies (`libgmp`,
+`libgmpxx`, `libstdc++`, ...) are ordinary system libraries on the default
+linker search path.
 
 ## Prerequisites
 
 - Rust (stable) and Cargo
-- A C++20 compiler (GCC 13+ / Clang 16+), `cmake`, `ninja`, `git`
+- A C++20 compiler (GCC 13+ / Clang 16+), `cmake`, `git`
 - Development headers for GMP, MPFR, zlib, and Boost
 
 On Fedora:
 
 ```bash
-sudo dnf install -y gcc-c++ cmake ninja-build git \
+sudo dnf install -y gcc-c++ cmake git \
     gmp-devel gmp-c++ mpfr-devel zlib-devel boost-devel
 ```
 
 On Debian/Ubuntu:
 
 ```bash
-sudo apt install -y g++ cmake ninja-build git \
+sudo apt install -y g++ cmake git \
     libgmp-dev libmpfr-dev zlib1g-dev libboost-dev
 ```
 
-## Building the native dependencies (cloning)
-
-The ApproxMC sources are **not vendored** in this repository. A helper script
-clones them and builds the whole stack. `third_party/` and the generated
-`.cargo/config.toml` are git-ignored.
-
-```bash
-./scripts/setup-native.sh
-```
-
-This will:
-
-1. `git clone --depth 1 https://github.com/meelgroup/approxmc.git` into
-   `third_party/approxmc` (skipped if already present). ApproxMC's CMake then
-   fetches CryptoMiniSat, Arjun, SBVA, and cadical/cadiback via `FetchContent`.
-2. Configure, build, and install shared libraries into `third_party/install/`.
-3. Generate `.cargo/config.toml` with the correct `rpath` so binaries and tests
-   locate the shared libraries at runtime without `LD_LIBRARY_PATH`.
-
-Useful options / overrides:
-
-```bash
-./scripts/setup-native.sh --clean          # wipe third_party/ and rebuild
-APPROXMC_REPO=git@github.com:meelgroup/approxmc.git ./scripts/setup-native.sh  # SSH clone
-```
-
-> **Why a script instead of a submodule?** ApproxMC pulls its own dependencies
-> through CMake `FetchContent` at configure time, so a single clone is not
-> self-contained. The script keeps the whole transitive build reproducible and
-> writes the machine-specific `rpath` for you.
-
-Once the native build is in place:
+## Building
 
 ```bash
 cargo build
 cargo test
 ```
 
-The install prefix defaults to `third_party/install`; override it with the
-`APPROXMC_PREFIX` environment variable to build/link against a different (e.g.
-system) install.
+The first build compiles ApproxMC and its whole dependency chain from source
+(several minutes); the result is cached under `target/` like any other build
+script output, so subsequent builds are incremental. To build against a
+different ApproxMC ref, edit `APPROXMC_TAG`/`APPROXMC_REPO` in
+[`approxmc-sys/vendor/CMakeLists.txt`](approxmc-sys/vendor/CMakeLists.txt)
+(defaults to the `master` branch of `meelgroup/approxmc`).
 
 ## Using from another workspace
 
@@ -94,16 +73,10 @@ depend on that inner directory (not the virtual workspace root):
 approx-mc7-rust = { path = "../approx-mc7-rust/approx-mc7-rust" }
 ```
 
-The consumer binary must also locate the native shared libraries at runtime.
-Easiest is a one-time system install (then no per-project config is needed):
-
-```bash
-sudo cp third_party/install/lib64/lib*.so* /usr/local/lib/ && sudo ldconfig
-```
-
-Alternatively, copy this repo's generated `.cargo/config.toml` `rustflags` (the
-`--disable-new-dtags` + `-rpath` flags) into the consumer workspace, or run with
-`LD_LIBRARY_PATH=<prefix>/lib64`.
+The native dependency chain is statically linked, so the consumer's binaries
+need nothing extra at runtime (no rpath, no `LD_LIBRARY_PATH`, no system
+install step) beyond the same system dev packages listed under
+[Prerequisites](#prerequisites), which `cargo build` needs to rebuild it.
 
 ## Usage
 
@@ -241,16 +214,13 @@ the API, and the linking/indexing pitfalls.
 
 ## Troubleshooting
 
-- **`error while loading shared libraries: libapproxmc.so...`** — the rpath is
-  missing or stale. Re-run `./scripts/setup-native.sh` to regenerate
-  `.cargo/config.toml`, or move the repo and re-run it (the rpath is an absolute
-  path into `third_party/install`).
-- **`libcryptominisat5.so... cannot open shared object file`** — the transitive
-  rpath tag is missing; the generated config uses `-Wl,--disable-new-dtags` to
-  make the rpath apply to indirectly-loaded libraries. Regenerate it with the
-  script.
 - **CMake cannot find `gmp` / `mpfr`** — install the `-devel`/`-dev` packages
   listed under [Prerequisites](#prerequisites).
+- **Link errors about a missing/duplicate symbol from a new ApproxMC
+  version** — a transitive static lib either isn't installed or duplicates
+  another one's objects; see the comments in
+  [`approxmc-sys/build.rs`](approxmc-sys/build.rs) (the `oracle`/`cryptominisat5`
+  duplicate is handled there already).
 
 ## License
 
