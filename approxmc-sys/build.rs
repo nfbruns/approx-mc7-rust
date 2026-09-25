@@ -159,12 +159,61 @@ fn main() {
     ld.arg("--no-whole-archive").arg("-o").arg(&combined);
     run(&mut ld);
 
+    // `objcopy --keep-global-symbol` demotes EVERY other global to local,
+    // including weak ("W"/"V") and GNU_UNIQUE ("u") symbols -- i.e. C++
+    // vague-linkage template instantiations, vtables/typeinfo and exception
+    // personality refs (`DW.ref.__gxx_personality_v0`), which GCC/Clang
+    // deliberately emit as weak/comdat so duplicate copies across TUs (and
+    // across archives, at final link time) get folded into one automatically.
+    // Once localized, each duplicate becomes a distinct, non-mergeable local
+    // symbol; the final linker still comdat-folds the *sections* by group
+    // signature but can no longer redirect relocations that targeted a
+    // specific discarded duplicate's (now-local) symbol, producing "relocation
+    // refers to a symbol in a discarded section" errors. Only strong
+    // (non-weak, non-unique) globals actually risk a real multiple-definition
+    // clash against another crate's separately-vendored copy of this C++
+    // stack, so only those are localized here; weak/unique symbols are left
+    // untouched to keep normal comdat folding intact.
+    let nm_out = Command::new("nm")
+        .arg("-P")
+        .arg("-g")
+        .arg("--defined-only")
+        .arg(&combined)
+        .output()
+        .unwrap_or_else(|e| panic!("failed to run nm: {e}"));
+    assert!(nm_out.status.success(), "nm failed with {}", nm_out.status);
+    let nm_text = String::from_utf8(nm_out.stdout).expect("nm output not utf8");
+    let mut to_localize: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for line in nm_text.lines() {
+        let mut fields = line.split_whitespace();
+        let Some(name) = fields.next() else { continue };
+        let Some(ty) = fields.next() else { continue };
+        if matches!(ty, "W" | "V" | "u" | "U") {
+            continue;
+        }
+        if SHIM_EXPORTS.contains(&name) {
+            continue;
+        }
+        to_localize.insert(name);
+    }
+    let symbols_list = out_dir.join("localize_symbols.txt");
+    std::fs::write(
+        &symbols_list,
+        to_localize.iter().fold(String::new(), |mut acc, s| {
+            acc.push_str(s);
+            acc.push('\n');
+            acc
+        }),
+    )
+    .expect("failed to write localize_symbols.txt");
+
     let hidden = out_dir.join("combined_hidden.o");
     let mut objcopy = Command::new("objcopy");
-    for sym in SHIM_EXPORTS {
-        objcopy.arg("--keep-global-symbol").arg(sym);
-    }
-    objcopy.arg(&combined).arg(&hidden);
+    objcopy
+        .arg("--localize-symbols")
+        .arg(&symbols_list)
+        .arg(&combined)
+        .arg(&hidden);
     run(&mut objcopy);
 
     let archive = out_dir.join("libapproxmc_shim.a");
